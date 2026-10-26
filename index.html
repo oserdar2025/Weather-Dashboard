@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Dashboard</title>
+
+  <!-- DaisyUI + Tailwind CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="min-h-screen bg-base-200">
+  <div class="mx-auto max-w-4xl space-y-5 p-4 sm:p-6">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between gap-4">
+      <h1 class="flex items-center gap-2 text-2xl font-bold sm:text-3xl">
+        <i data-lucide="cloud-sun" class="h-7 w-7 text-primary"></i>
+        Weather Dashboard
+      </h1>
+      <button id="theme-toggle" class="btn btn-ghost btn-circle" aria-label="Toggle theme"></button>
+    </header>
+
+    <!-- Search -->
+    <form id="search-form" class="flex gap-2">
+      <label class="input input-bordered flex flex-1 items-center gap-2">
+        <i data-lucide="search" class="h-4 w-4 opacity-60"></i>
+        <input id="search-input" type="text" class="grow" placeholder="Search city…" autocomplete="off" required />
+      </label>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden py-16">
+      <div class="flex justify-center">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="alert alert-error hidden">
+      <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+      <span id="error-text"></span>
+    </div>
+
+    <!-- Content -->
+    <div id="content" class="hidden space-y-5">
+
+      <!-- Current weather -->
+      <section class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="city-name" class="card-title text-2xl"></h2>
+              <p id="condition" class="capitalize opacity-70"></p>
+            </div>
+            <img id="icon" class="h-20 w-20 -mt-2" alt="weather icon" />
+          </div>
+
+          <div class="mt-1 flex items-end gap-3">
+            <span id="temp" class="text-5xl font-bold sm:text-6xl"></span>
+            <span class="mb-2 text-sm opacity-60">Feels like <span id="feels"></span></span>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div class="flex items-center gap-3 rounded-box bg-base-200 p-3">
+              <i data-lucide="droplets" class="h-5 w-5 text-info"></i>
+              <div>
+                <div class="text-xs opacity-60">Humidity</div>
+                <div id="humidity" class="font-semibold">—</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 rounded-box bg-base-200 p-3">
+              <i data-lucide="wind" class="h-5 w-5 text-success"></i>
+              <div>
+                <div class="text-xs opacity-60">Wind</div>
+                <div id="wind" class="font-semibold">—</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 rounded-box bg-base-200 p-3">
+              <i data-lucide="gauge" class="h-5 w-5 text-warning"></i>
+              <div>
+                <div class="text-xs opacity-60">Pressure</div>
+                <div id="pressure" class="font-semibold">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Forecast -->
+      <section>
+        <h3 class="mb-3 flex items-center gap-2 text-lg font-semibold">
+          <i data-lucide="calendar-days" class="h-5 w-5 text-primary"></i>
+          5-Day Forecast
+        </h3>
+        <div id="forecast" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const ICON = (code, size = "2x") =>
+      `https://openweathermap.org/img/wn/${code}@${size}.png`;
+
+    const el = (id) => document.getElementById(id);
+    const contentEl = el("content");
+    const loadingEl = el("loading");
+    const errorEl = el("error");
+    const errorText = el("error-text");
+
+    /* ---------------- Theme ---------------- */
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("theme", theme);
+      el("theme-toggle").innerHTML =
+        `<i data-lucide="${theme === "dark" ? "sun" : "moon"}" class="h-5 w-5"></i>`;
+      lucide.createIcons();
+    }
+
+    el("theme-toggle").addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+
+    /* ---------------- UI state ---------------- */
+    function setState(state, message = "") {
+      loadingEl.classList.toggle("hidden", state !== "loading");
+      errorEl.classList.toggle("hidden", state !== "error");
+      contentEl.classList.toggle("hidden", state !== "ready");
+      if (state === "error") errorText.textContent = message;
+    }
+
+    /* ---------------- Render ---------------- */
+    function renderCurrent(d) {
+      el("city-name").textContent = `${d.name}, ${d.sys.country}`;
+      el("temp").textContent = `${Math.round(d.main.temp)}°C`;
+      el("condition").textContent = d.weather[0].description;
+      el("feels").textContent = `${Math.round(d.main.feels_like)}°C`;
+      el("humidity").textContent = `${d.main.humidity}%`;
+      el("wind").textContent = `${Math.round(d.wind.speed * 3.6)} km/h`;
+      el("pressure").textContent = `${d.main.pressure} hPa`;
+      el("icon").src = ICON(d.weather[0].icon, "4x");
+      el("icon").alt = d.weather[0].description;
+    }
+
+    function renderForecast(list) {
+      const byDay = new Map();
+      list.forEach((item) => {
+        const day = item.dt_txt.slice(0, 10);
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push(item);
+      });
+
+      const days = [...byDay.entries()].slice(0, 5).map(([day, items]) => {
+        const noon = items.find((i) => i.dt_txt.includes("12:00:00")) || items[0];
+        const temps = items.map((i) => i.main.temp);
+        return {
+          name: new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
+            weekday: "short",
+          }),
+          icon: noon.weather[0].icon,
+          desc: noon.weather[0].main,
+          max: Math.round(Math.max(...temps)),
+          min: Math.round(Math.min(...temps)),
+        };
+      });
+
+      el("forecast").innerHTML = days
+        .map(
+          (d) => `
+        <div class="card bg-base-100 shadow-md">
+          <div class="card-body items-center gap-1 p-4">
+            <span class="text-sm font-semibold">${d.name}</span>
+            <img src="${ICON(d.icon)}" alt="${d.desc}" class="h-14 w-14" />
+            <span class="text-xs opacity-60">${d.desc}</span>
+            <div class="text-sm font-bold">
+              ${d.max}° <span class="font-normal opacity-60">${d.min}°</span>
+            </div>
+          </div>
+        </div>`
+        )
+        .join("");
+    }
+
+    /* ---------------- Data fetching ---------------- */
+    async function loadWeather(city) {
+      setState("loading");
+      try {
+        // Vercel-däki öz backend API-myza ýüzlenýäris
+        const res = await fetch(`/api/weather?city=${encodeURIComponent(city)}`);
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const msg = data.message || `Request failed (${res.status})`;
+          throw new Error(msg.charAt(0).toUpperCase() + msg.slice(1));
+        }
+
+        const { current, forecast } = await res.json();
+
+        renderCurrent(current);
+        renderForecast(forecast.list);
+        setState("ready");
+      } catch (err) {
+        setState("error", err.message || "Something went wrong. Please try again.");
+      }
+    }
+
+    /* ---------------- Events & init ---------------- */
+    el("search-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const city = el("search-input").value.trim();
+      if (city) loadWeather(city);
+    });
+
+    applyTheme(
+      localStorage.getItem("theme") ||
+        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    );
+
+    lucide.createIcons();
+    loadWeather("London");
+  </script>
+</body>
+</html>
